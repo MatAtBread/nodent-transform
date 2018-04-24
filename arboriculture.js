@@ -1273,6 +1273,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                 ref = path[0];
             }
             label = opts.generatedSymbolPrefix + "Loop_" + label;
+            var idLocal = localised ? ident(label + "_local"):null ;
             var idTrampoline = ident(label + "_trampoline");
             var idIter = ident(label);
             var idStep = step ? ident(label + "_step") : idIter;
@@ -1395,7 +1396,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                 }).expr;
             } else {
                 invokeIterate = parsePart("($0.$1.trampoline(this,$2,$3,$4,$6)($5))", [opts.$runtime ? genIdent.runtime : ident('Function'),
-                    genIdent.asyncbind,idContinuation,localised ? parsePart("(function(){ return $0.apply(this.arguments) })", [idStep]).expr : idStep,
+                    genIdent.asyncbind,idContinuation,localised ? parsePart("(function(){ return $0.apply(this,arguments) })", [idStep]).expr : idStep,
                     exit,initIter,literal(depth === 1)]).expr;
             }
             var iterDecls = init && init.declarations ? init.declarations.map(function (d) {
@@ -1405,11 +1406,17 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                 var stepArgs = {
                     idIter: idIter,
                     idStep: idStep,
-                    step: step
+                    step: step,
+                    idLocal: idLocal,
+                    decId: init && init.declarations && init.declarations[0].id
                 };
                 if (localised) {
                     stepArgs.iterDecls = iterDecls;
-                    body.unshift(parsePart(step.expression.$EmptyExpression ? "$idStep = function(){ return $idIter.bind(this,$iterDecls) }" : "$idStep = function(){ $:step; return $idIter.bind(this,$iterDecls) }", stepArgs).body[0]);
+                    body.unshift(parsePart(step.expression.$EmptyExpression ? 
+                    		"$idStep = function(){ var $decId = $idLocal() ; return $idIter.bind(this,$iterDecls) }" : 
+                    		"$idStep = function(){ var $decId = $idLocal() ; $:step; return $idIter.bind(this,$iterDecls) }", 
+                    		stepArgs).body[0]);
+                    body.unshift(parsePart("function $idLocal(){ return $decId }", stepArgs).body[0]);
                 } else {
                     mapped.push(parsePart(step.expression.$EmptyExpression ? "function $idStep(){ return $idIter }" : "function $idStep(){ $:step; return $idIter }", stepArgs).body[0]);
                 }
