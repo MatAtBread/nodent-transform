@@ -1235,7 +1235,6 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
             return n.type === 'AwaitExpression' && !n.$hidden || inAsyncLoop && (n.type === 'BreakStatement' || n.type === 'ContinueStatement') && n.label;
         }
         
-        ;
         if (!node.$mapped && examine(node).isLoop && contains(node, mappableLoop)) {
             path[0].self.$mapped = true;
             var p;
@@ -1372,7 +1371,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
             if (step && localised) 
                 decls.push({
                 "type": "VariableDeclarator",
-                "id": idStep
+                "id": idLocal
             });
             if (decls.length) 
                 mapped.push({
@@ -1383,7 +1382,47 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
             var invokeIterate;
             var exit = getExit(path, [opts]).$error;
             if (opts.noRuntime) {
-                invokeIterate = parsePart(opts.es6target ? "($idTrampoline = ((q) => { " + "    $$setMapped: while (q) { " + "         if (q.then)  " + (depth === 1 ? "             return void q.then($idTrampoline, $exit); " : "             return q.then($idTrampoline, $exit); ") + "         try { " + "             if (q.pop)  " + "                 if (q.length)  " + "                 return q.pop() ? $idContinuation.call(this) : q; " + "              else  " + "                 q = $idStep; " + "              else  " + "                 q = q.call(this) " + "          } catch (_exception) { " + "             return $exit(_exception); " + "          } " + "     } " + "}))($idIter)" : "($idTrampoline = (function (q) { " + "    $$setMapped: while (q) { " + "         if (q.then)  " + (depth === 1 ? "             return void q.then($idTrampoline, $exit); " : "             return q.then($idTrampoline, $exit); ") + "         try { " + "             if (q.pop)  " + "                 if (q.length)  " + "                 return q.pop() ? $idContinuation.call(this) : q; " + "              else  " + "                 q = $idStep; " + "              else  " + "                 q = q.call(this) " + "          } catch (_exception) { " + "             return $exit(_exception); " + "          } " + "     } " + "}).bind(this))($idIter)", {
+                invokeIterate = parsePart(
+	                opts.es6target?
+	                    "($idTrampoline = ((q) => { "+
+	                    "    $$setMapped: while (q) { "+
+	                    "         if (q.then)  "+
+	                    (depth===1?
+	                    "             return void q.then($idTrampoline, $exit); ":
+	                    "             return q.then($idTrampoline, $exit); ")+
+	                    "         try { "+
+	                    "             if (q.pop)  "+
+	                    "                 if (q.length)  "+
+	                    "                 return q.pop() ? $idContinuation.call(this) : q; "+
+	                    "              else  "+
+	                    "                 q = $idStep; "+
+	                    "              else  "+
+	                    "                 q = q.call(this) "+
+	                    "          } catch (_exception) { "+
+	                    "             return $exit(_exception); "+
+	                    "          } "+
+	                    "     } "+
+	                    "}))($idIter)":
+	                    "($idTrampoline = (function (q) { "+
+	                    "    $$setMapped: while (q) { "+
+	                    "         if (q.then)  "+
+	                    (depth===1?
+	                    "             return void q.then($idTrampoline, $exit); ":
+	                    "             return q.then($idTrampoline, $exit); ")+
+	                    "         try { "+
+	                    "             if (q.pop)  "+
+	                    "                 if (q.length)  "+
+	                    "                 return q.pop() ? $idContinuation.call(this) : q; "+
+	                    "              else  "+
+	                    "                 q = $idStep; "+
+	                    "              else  "+
+	                    "                 q = q.call(this) "+
+	                    "          } catch (_exception) { "+
+	                    "             return $exit(_exception); "+
+	                    "          } "+
+	                    "     } "+
+	                    "}).bind(this))($idIter)",
+                {
                     setMapped: function (n) {
                         n.$mapped = true;
                         return n;
@@ -1396,7 +1435,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                 }).expr;
             } else {
                 invokeIterate = parsePart("($0.$1.trampoline(this,$2,$3,$4,$6)($5))", [opts.$runtime ? genIdent.runtime : ident('Function'),
-                    genIdent.asyncbind,idContinuation,localised ? parsePart("(function(){ return $0.apply(this,arguments) })", [idStep]).expr : idStep,
+                    genIdent.asyncbind,idContinuation,idStep,
                     exit,initIter,literal(depth === 1)]).expr;
             }
             var iterDecls = init && init.declarations ? init.declarations.map(function (d) {
@@ -1408,15 +1447,14 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                     idStep: idStep,
                     step: step,
                     idLocal: idLocal,
-                    decId: init && init.declarations && init.declarations[0].id
+                    decId: iterDecls
                 };
                 if (localised) {
                     stepArgs.iterDecls = iterDecls;
-                    body.unshift(parsePart(step.expression.$EmptyExpression ? 
-                    		"$idStep = function(){ var $decId = $idLocal() ; return $idIter.bind(this,$iterDecls) }" : 
-                    		"$idStep = function(){ var $decId = $idLocal() ; $:step; return $idIter.bind(this,$iterDecls) }", 
-                    		stepArgs).body[0]);
-                    body.unshift(parsePart("function $idLocal(){ return $decId }", stepArgs).body[0]);
+                    mapped.push(parsePart(step.expression.$EmptyExpression ? 
+                    		(opts.es6target ? "function $idStep(){ return $idIter.bind(this,...$idLocal()) }" : "function $idStep(){ var [$decId] = $idLocal(); return $idIter.bind(this,$decId) }") :
+                    		"function $idStep(){ var [$decId] = $idLocal(); $:step; return $idIter.bind(this,$decId) }", stepArgs).body[0]);
+                    body.unshift(parsePart("$idLocal = function(){ return [$decId] }", stepArgs).body[0]);
                 } else {
                     mapped.push(parsePart(step.expression.$EmptyExpression ? "function $idStep(){ return $idIter }" : "function $idStep(){ $:step; return $idIter }", stepArgs).body[0]);
                 }
@@ -2876,6 +2914,7 @@ module.exports = {
     partialParser: partialParser,
     babelLiteralNode: babelLiteralNode,
     transform: function (pr, opts, helpers) {
+global.printNode = helpers.printNode ;    	
         return asynchronize(pr, opts, helpers.logger, partialParser(helpers.parse), helpers.printNode);
     }
 };
