@@ -163,6 +163,8 @@ function babelLiteralNode(value) {
 }
 
 function ident(name, loc) {
+	if (!name)
+		throw new Error("Illegal Identifier name") ;
     return {
         type: 'Identifier',
         name: name,
@@ -184,7 +186,8 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
     Object.keys(opts).filter(function (k) {
         return k[0] === '$';
     }).forEach(function (k) {
-        genIdent[k.slice(1)] = ident(opts[k]);
+    		if (opts[k])
+    			genIdent[k.slice(1)] = ident(opts[k]);
     });
     /*
      * descendOn = true                     Enter scopes within scopes
@@ -913,10 +916,10 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                 var i = ref.index + 1;
                 var afterTry = ref.parent[ref.field].splice(i, ref.parent[ref.field].length - i);
                 if (afterTry.length) {
-                    ctnName = node.$seh + "Post";
-                    var afterContinuation = down(makeBoundFn(ctnName, afterTry, [], getExit(path, [opts]).$error));
+                    ctnName = ident(node.$seh + "Post") ;
+                    var afterContinuation = down(makeBoundFn(ctnName.name, afterTry, [], getExit(path, [opts]).$error));
                     ref.parent[ref.field].splice(ref.index, 0, afterContinuation);
-                    continuation = parsePart("return $0()", [node.finalizer ? deferredFinally(node, ident(ctnName)) : ident(ctnName)]).body[0];
+                    continuation = parsePart("return $0()", [node.finalizer ? deferredFinally(node, ctnName) : ctnName]).body[0];
                 } else if (node.finalizer) {
                     continuation = returnThisCall(deferredFinally(node));
                 }
@@ -947,7 +950,11 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                     value: ident(node.$seh + "Value"),
                     body: cloneNode(node.finalizer.body)
                 };
-                var chainFinalize = parsePart("(function ($value) {                                      " + "       $:body;                                           " + "       return $exit && ($exit.call(this, $value));        " + "   })", finalParams).expr;
+                var chainFinalize = parsePart(
+                		"(function ($value) {                                  " + 
+                		"    $:body;                                           " + 
+                		"   return $exit && ($exit.call(this, $value));        " + 
+                		"})", finalParams).expr;
                 var finalizer = {
                     type: 'VariableDeclaration',
                     kind: 'var',
@@ -969,7 +976,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                     }]
                 };
                 afterDirectives(ref.parent[ref.field], [finalizer]);
-                var callFinally = parsePart("return $0()", [node.finalizer ? deferredFinally(node, ident(ctnName)) : ident(ctnName)]).body[0];
+                var callFinally = cloneNode(continuation) ;//parsePart("return $0()", [node.finalizer ? deferredFinally(node, ctnName) : ctnName]).body[0];
                 catchBody.body[catchBody.length - 1] = callFinally;
                 node.block.body[node.block.body.length - 1] = callFinally;
                 delete node.finalizer;
@@ -2905,7 +2912,6 @@ function partialParser(parse) {
             });
             return dest;
         }
-        
     };
 }
 
@@ -2917,4 +2923,3 @@ module.exports = {
         return asynchronize(pr, opts, helpers.logger || function(){}, partialParser(helpers.parse), helpers.printNode);
     }
 };
-
