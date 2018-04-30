@@ -935,6 +935,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
             if (node.handler) {
                 var symCatch = ident(node.$seh + "Catch");
                 catchBody = cloneNode(node.handler.body);
+                down(catchBody);
                 var catcher = makeBoundFn(symCatch.name, catchBody, [cloneNode(node.handler.param)], node.finalizer ? deferredFinally(node, binding.$error) : binding.$error);
                 node.handler.body.body = [{
                     type: 'CallExpression',
@@ -2920,6 +2921,7 @@ module.exports = {
     partialParser: partialParser,
     babelLiteralNode: babelLiteralNode,
     transform: function (pr, opts, helpers) {
+global.printNode = helpers.printNode ;    	
         return asynchronize(pr, opts, helpers.logger || function(){}, partialParser(helpers.parse), helpers.printNode);
     }
 };
