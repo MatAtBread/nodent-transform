@@ -105,7 +105,7 @@ var examinations = {
             case 'ClassExpression':
                 return true;
             case 'VariableDeclaration':
-                return this.node.kind && this.node.kind !== 'var';
+                return this.node.kind && this.node.kind === 'let';
             case 'FunctionDeclaration':
             case 'FunctionExpression':
                 return !(!this.node.generator);
@@ -183,6 +183,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
     var continuations = {};
     var generatedSymbol = 1;
     var genIdent = {};
+    
     Object.keys(opts).filter(function (k) {
         return k[0] === '$';
     }).forEach(function (k) {
@@ -429,7 +430,12 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
         }
         return null;
     }
-    
+
+
+    var looksLikeES6 = opts.es6target || pr.ast.type === 'Program' && pr.ast.sourceType === 'module' || contains(pr.ast, function (n) {
+        return examine(n).isES6;
+    }, true);
+
     // actually do the transforms
     if (opts.engine) {
         // Only Transform extensions:
@@ -454,18 +460,8 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
         pr.ast = fixSuperReferences(pr.ast);
         asyncTransforms(pr.ast);
     }
-    /*
-    if (opts.babelTree) {
-        treeWalk(pr.ast, function (node, descend, path) {
-            if (node.type === 'Literal') {
-                coerce(node, literal(node.value));
-            } else {
-	            descend();
-			}
-        });
-    }
-    */
     return pr;
+    
     function asyncTransforms(ast, awaitFlag) {
         var useLazyLoops = !(opts.promises || opts.generators || opts.engine) && opts.lazyThenables;
         // Because we create functions (and scopes), we need all declarations before use
@@ -1956,6 +1952,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
     
     /* Find all nodes within this scope matching the specified function */
     function scopedNodes(ast, matching, flat) {
+    		if (!flat) flat = ['isScope','isLoop'] ;
         var matches = [];
         treeWalk(ast, function (node, descend, path) {
             if (node === ast) 
@@ -1964,9 +1961,11 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                 matches.push([].concat(path));
                 return;
             }
-            if (flat || examine(node).isScope) {
-                return;
-            }
+            if (flat === true) return ;
+            var x = examine(node) ;
+            for (var i=0; i<flat.length; i++) 
+                if (x[flat[i]]) 
+            		   return ;
             descend();
         });
         return matches;
@@ -2249,7 +2248,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
             if (examine(node).isBlockStatement) {
                 if (containsAwait(node)) {
                     // For this scope/block, find all the hoistable functions, vars and directives
-                    var isScope = !path[0].parent || examine(path[0].parent).isScope;
+                    var isScope = !path[0].parent || examine(path[0].parent).isScope || examine(path[0].parent).isLoop ;
                     /* 'const' is highly problematic. In early version of Chrome (Node 0.10, 4.x, 5.x) non-standard behaviour:
                      *
                      * Node             scope           multiple-decls
@@ -2275,11 +2274,12 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                         // Work out which const identifiers are duplicates
                         // Ones that are only declared once can simply be treated as vars, whereas
                         // identifiers that are declared multiple times have block-scope and are
-                        // only valid in node 6 or in strict mode on node 4/5
+                        // only valid in node 6 or in strict mode on node 4/5. 
+                        // In strict mode or ES6-a-like targets always assume the correct ES6 semantics (block scope)
                         consts.forEach(function (d) {
                             d[0].self.declarations.forEach(function (e) {
                                 getDeclNames(e.id).forEach(function (n) {
-                                    if (names[n] || duplicates[n]) {
+                                    if (inStrictBody || looksLikeES6 || names[n] || duplicates[n]) {
                                         delete names[n];
                                         duplicates[n] = e;
                                     } else {
@@ -2650,9 +2650,6 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
         }
         // Hoist generated FunctionDeclarations within ES5 Strict functions (actually put them at the
         // end of the scope-block, don't hoist them, it's just an expensive operation)
-        var looksLikeES6 = ast.type === 'Program' && ast.sourceType === 'module' || contains(ast, function (n) {
-            return examine(n).isES6;
-        }, true);
         if (!looksLikeES6) {
             var useStrict = isStrict(ast);
             (function (ast) {
@@ -2667,7 +2664,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                                 if (n.type === 'FunctionDeclaration') {
                                     return path[0].parent !== functionScope;
                                 }
-                            });
+                            },['isScope']);
                             functions = functions.map(function (path) {
                                 return path[0].remove();
                             });

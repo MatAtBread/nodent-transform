@@ -1,6 +1,6 @@
 {
   "name": "nodent-transform",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "description": "AST transform and basic tools for nodent and nodent-compiler",
   "main": "arboriculture.js",
   "scripts": {
