@@ -2248,7 +2248,9 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
             if (examine(node).isBlockStatement) {
                 if (containsAwait(node)) {
                     // For this scope/block, find all the hoistable functions, vars and directives
-                    var isScope = !path[0].parent || examine(path[0].parent).isScope || examine(path[0].parent).isLoop ;
+                	    var isVarScope = !path[0].parent || examine(path[0].parent).isScope  ; 
+                	    var isLoopScope = path[0].parent && examine(path[0].parent).isLoop ;
+                    var isScope = isVarScope || isLoopScope ;
                     /* 'const' is highly problematic. In early version of Chrome (Node 0.10, 4.x, 5.x) non-standard behaviour:
                      *
                      * Node             scope           multiple-decls
@@ -2280,6 +2282,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                             d[0].self.declarations.forEach(function (e) {
                                 getDeclNames(e.id).forEach(function (n) {
                                     if (inStrictBody || looksLikeES6 || names[n] || duplicates[n]) {
+                                    	   looksLikeES6 = true ;
                                         delete names[n];
                                         duplicates[n] = e;
                                     } else {
@@ -2341,7 +2344,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                                 ref.remove();
                             }
                         });
-                        vars = scopedNodes(node, isFreeVariable(['var']), false);
+                        if (isVarScope && !isLoopScope) vars = scopedNodes(node, isFreeVariable(['var']), ['isScope']);
                         lets = [];
                     } else {
                         lets = scopedNodes(node, isFreeVariable(['const']), true);
