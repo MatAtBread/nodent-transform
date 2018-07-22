@@ -2921,7 +2921,7 @@ module.exports = {
     partialParser: partialParser,
     babelLiteralNode: babelLiteralNode,
     transform: function (pr, opts, helpers) {
-global.printNode = helpers.printNode ;    	
+/* DEBUG USE ONLY: global.printNode = helpers.printNode ;*/
         return asynchronize(pr, opts, helpers.logger || function(){}, partialParser(helpers.parse), helpers.printNode);
     }
 };
