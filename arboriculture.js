@@ -917,7 +917,7 @@ function asynchronize(pr, opts, logger, parsePart, printNode) {
                     ref.parent[ref.field].splice(ref.index, 0, afterContinuation);
                     continuation = parsePart("return $0()", [node.finalizer ? deferredFinally(node, ctnName) : ctnName]).body[0];
                 } else if (node.finalizer) {
-                    continuation = returnThisCall(deferredFinally(node));
+                    continuation = thisCall(deferredFinally(node));
                 }
             } else {
                 throw new Error(pr.filename + " - malformed try/catch blocks");
